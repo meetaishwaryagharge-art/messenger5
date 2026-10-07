@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en" class="auth-wait">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Client Broadcast Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+html.auth-wait body{visibility:hidden}
+:root{--ink:#1b2927;--teal:#0f6b5c;--teal-d:#0a4f44;--saffron:#e8a33d;--paper:#f5f6f2;--line:#dfe3dc}
+body{font-family:'Source Sans 3',sans-serif;background:var(--paper);color:var(--ink)}
+h1,h2,h3,.brand{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.01em}
+.side{background:var(--ink);min-height:100vh;color:#cfd8d4}
+.side .brand{color:#fff;font-size:1.25rem}
+.side .nav-link{color:#cfd8d4;border-radius:.5rem;padding:.6rem .8rem;cursor:pointer}
+.side .nav-link.active{background:var(--teal);color:#fff}
+.side .nav-link:hover:not(.active){background:#26383a}
+.panel{background:#fff;border:1px solid var(--line);border-radius:.75rem}
+.btn-teal{background:var(--teal);color:#fff;border:0}.btn-teal:hover{background:var(--teal-d);color:#fff}
+.form-control:focus,.form-select:focus,.form-check-input:focus,.btn:focus-visible,.nav-link:focus-visible{border-color:var(--teal);box-shadow:0 0 0 .2rem rgba(15,107,92,.25);outline:0}
+.form-check-input:checked{background-color:var(--teal);border-color:var(--teal)}
+.stat b{font-family:'Bricolage Grotesque';font-size:1.8rem;display:block;line-height:1.1}
+.chat{background:#e7ddd0;border-radius:.75rem;padding:1rem;min-height:220px}
+.bubble{background:#dcf8c6;border-radius:.6rem .6rem 0 .6rem;padding:.6rem .8rem;max-width:92%;margin-left:auto;white-space:pre-wrap;box-shadow:0 1px 1px rgba(0,0,0,.12);font-size:.95rem}
+.mail{border:1px solid var(--line);border-radius:.6rem;background:#fff;padding:.8rem 1rem;white-space:pre-wrap;font-size:.95rem}
+.chip{border:1px solid var(--line);background:#fff;border-radius:2rem;padding:.25rem .8rem;font-size:.9rem;cursor:pointer}
+.chip:hover{border-color:var(--saffron);background:#fff8ea}
+.tag{font-size:.78rem;border-radius:1rem;padding:.1rem .55rem;background:#e8efec;color:var(--teal-d)}
+.tag.off{background:#f1f1f1;color:#999;text-decoration:line-through}
+.view{display:none}.view.show{display:block}
+@media(max-width:767px){.side{min-height:auto}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script src="auth.js"></script>
+<script>Auth.guard().then(u=>{ if(u) window.addEventListener("DOMContentLoaded",()=>{ document.getElementById("userEmail").textContent=u.email; }); });</script>
+</head>
+<body>
+<div class="container-fluid"><div class="row">
+
+<!-- Sidebar -->
+<nav class="col-md-3 col-lg-2 side p-3">
+  <div class="brand mb-4"><i class="bi bi-megaphone-fill text-warning me-2"></i>Broadcast</div>
+  <div class="nav flex-md-column gap-1" role="tablist">
+    <a class="nav-link active" tabindex="0" data-view="compose"><i class="bi bi-pencil-square me-2"></i>New message</a>
+    <a class="nav-link" tabindex="0" data-view="contacts"><i class="bi bi-people me-2"></i>Clients</a>
+    <a class="nav-link" tabindex="0" data-view="groups"><i class="bi bi-collection me-2"></i>Groups</a>
+    <a class="nav-link" tabindex="0" data-view="scheduled"><i class="bi bi-calendar-event me-2"></i>Scheduled<span class="badge text-bg-warning ms-2 d-none" id="dueBadge"></span></a>
+    <a class="nav-link" tabindex="0" data-view="history"><i class="bi bi-clock-history me-2"></i>Sent history</a>
+  </div>
+  <p class="small mt-4 mb-0 opacity-75">Demo mode: messages are logged here, not delivered. See the <code>sendCampaign()</code> function to connect a real provider.</p>
+  <div class="mt-4 pt-3" style="border-top:1px solid #34484a">
+    <div class="small text-truncate opacity-75" id="userEmail"></div>
+    <div class="small mt-1" id="syncState"></div>
+    <button type="button" class="btn btn-sm btn-outline-light mt-2 w-100" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Log out</button>
+  </div>
+</nav>
+
+<main class="col-md-9 col-lg-10 p-3 p-lg-4">
+
+<!-- COMPOSE -->
+<section id="view-compose" class="view show">
+  <h1 class="h3 mb-3">New message</h1>
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="panel p-3 p-lg-4">
+        <label class="form-label fw-semibold">Start from a template</label>
+        <div class="d-flex flex-wrap gap-2 mb-3" id="templates"></div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="subject">Subject (email) / Template name (WhatsApp)</label>
+          <input id="subject" class="form-control" placeholder="e.g. Diwali greetings">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="body">Message</label>
+          <textarea id="body" rows="7" class="form-control" placeholder="Write your message. Use {name} and {company} to personalise."></textarea>
+          <div class="form-text"><span id="count">0</span> characters. {name} and {company} are replaced for each client.</div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" for="audience">Send to</label>
+            <select id="audience" class="form-select"></select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" for="when">Schedule (optional)</label>
+            <input id="when" type="datetime-local" class="form-control">
+            <div class="form-text">Leave empty to send now. Scheduled messages appear under <b>Scheduled</b>.</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold d-block">Channels</label>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="chWa" checked><label class="form-check-label" for="chWa"><i class="bi bi-whatsapp text-success"></i> WhatsApp</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="chEm" checked><label class="form-check-label" for="chEm"><i class="bi bi-envelope"></i> Email</label></div>
+        </div>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <button class="btn btn-teal px-4" id="sendBtn"><i class="bi bi-send me-2"></i><span id="sendLabel">Send now</span></button>
+          <span class="text-secondary" id="reach"></span>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="panel p-3">
+        <ul class="nav nav-pills mb-3" id="prevTabs">
+          <li class="nav-item"><button class="nav-link active btn-sm" data-p="wa">WhatsApp preview</button></li>
+          <li class="nav-item"><button class="nav-link btn-sm" data-p="em">Email preview</button></li>
+        </ul>
+        <div id="pvWa" class="chat"><div class="bubble" id="pvWaText"></div></div>
+        <div id="pvEm" class="d-none"><div class="mail"><b id="pvEmSub"></b><hr class="my-2"><span id="pvEmText"></span><hr class="my-2"><small class="text-secondary">Unsubscribe link is added automatically.</small></div></div>
+        <p class="small text-secondary mt-3 mb-0">WhatsApp: company-initiated messages must use a template approved by Meta, and clients must have opted in.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACTS -->
+<section id="view-contacts" class="view">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 mb-0">Clients</h1>
+    <div class="d-flex gap-2">
+      <label class="btn btn-outline-secondary mb-0"><i class="bi bi-upload me-1"></i>Import CSV<input type="file" id="csv" accept=".csv" hidden></label>
+      <button class="btn btn-outline-secondary" id="exportBtn"><i class="bi bi-download me-1"></i>Export</button>
+      <button class="btn btn-teal" id="addBtn"><i class="bi bi-plus-lg me-1"></i>Add client</button>
+    </div>
+  </div>
+  <div id="legacyBox" class="panel p-3 mb-3 d-none"><div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span><i class="bi bi-hdd me-2"></i>This browser still has <b id="legacyN">0</b> clients saved locally from the older version. Upload them to the shared database?</span>
+    <span class="text-nowrap"><button class="btn btn-sm btn-teal" id="legacyUp">Upload them</button> <button class="btn btn-sm btn-light" id="legacyNo">Dismiss</button></span></div></div>
+  <div class="row g-3 mb-3 text-center">
+    <div class="col-4"><div class="panel p-3 stat"><b id="stAll">0</b>Clients</div></div>
+    <div class="col-4"><div class="panel p-3 stat"><b id="stWa">0</b>Can get WhatsApp</div></div>
+    <div class="col-4"><div class="panel p-3 stat"><b id="stEm">0</b>Can get email</div></div>
+  </div>
+  <div class="panel p-3">
+    <input id="search" class="form-control mb-3" placeholder="Search by name, company, phone or email">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Client</th><th>Phone</th><th>Email</th><th>Group</th><th>Opt-in</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p id="empty" class="text-center text-secondary my-4 d-none">No clients yet. Add one, or import a CSV with columns: name, company, phone, email, group.</p>
+    <p id="noMatch" class="text-center text-secondary my-4 d-none">No clients match your search.</p>
+    <div id="pgContacts" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3"></div>
+  </div>
+</section>
+
+<!-- GROUPS -->
+<section id="view-groups" class="view">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 mb-0">Groups</h1>
+    <button class="btn btn-teal" id="addGroupBtn"><i class="bi bi-plus-lg me-1"></i>Create group</button>
+  </div>
+  <div class="panel p-3">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Group</th><th>Clients</th><th>Can get WhatsApp</th><th>Can get email</th><th></th></tr></thead>
+        <tbody id="grpRows"></tbody>
+      </table>
+    </div>
+    <p id="grpEmpty" class="text-center text-secondary my-4 d-none">No groups yet. Create one and pick the clients that belong in it.</p>
+  </div>
+</section>
+
+<!-- SCHEDULED -->
+<section id="view-scheduled" class="view">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 mb-0">Scheduled</h1>
+    <button class="btn btn-teal" id="newSchedBtn"><i class="bi bi-calendar-plus me-1"></i>Schedule a message</button>
+  </div>
+  <div class="panel p-3 mb-3 small">
+    <i class="bi bi-info-circle me-1"></i>While this dashboard is open, scheduled messages are checked every few seconds. When one is due, the WhatsApp send list opens (WhatsApp needs one tap per client). For delivery with the browser closed, connect a backend (<code>BACKEND_URL</code>).
+  </div>
+  <div class="panel p-3">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>When</th><th>Subject</th><th>Audience</th><th>Channels</th><th>Reach</th><th>Status</th><th></th></tr></thead>
+        <tbody id="schedRows"></tbody>
+      </table>
+    </div>
+    <p id="schedEmpty" class="text-center text-secondary my-4 d-none">Nothing scheduled. Pick a date and time on the New message page to schedule one.</p>
+  </div>
+</section>
+
+<!-- HISTORY -->
+<section id="view-history" class="view">
+  <h1 class="h3 mb-3">Sent history</h1>
+  <div class="panel p-3"><div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Date</th><th>Subject</th><th>Audience</th><th>Channels</th><th>Reached</th><th>Status</th></tr></thead>
+      <tbody id="hist"></tbody>
+    </table></div>
+    <p id="histEmpty" class="text-center text-secondary my-4 d-none">Nothing sent yet. Your first message will appear here.</p>
+    <div id="pgHistory" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3"></div>
+  </div>
+</section>
+
+</main></div></div>
+
+<!-- Client modal -->
+<div class="modal fade" id="cModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5" id="cTitle">Add client</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body">
+    <input type="hidden" id="cId">
+    <div class="row g-3">
+      <div class="col-6"><label class="form-label" for="cName">Name</label><input id="cName" class="form-control"></div>
+      <div class="col-6"><label class="form-label" for="cCompany">Company</label><input id="cCompany" class="form-control"></div>
+      <div class="col-6"><label class="form-label" for="cPhone">WhatsApp number</label><input id="cPhone" class="form-control" placeholder="919876543210"></div>
+      <div class="col-6"><label class="form-label" for="cEmail">Email</label><input id="cEmail" type="email" class="form-control"></div>
+      <div class="col-12"><label class="form-label" for="cGroup">Group</label>
+        <select id="cGroup" class="form-select"></select>
+        <input id="cGroupNew" class="form-control mt-2 d-none" placeholder="New group name, e.g. Retail, Export, VIP" aria-label="New group name"></div>
+      <div class="col-12">
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="cWa" checked><label class="form-check-label" for="cWa">Agreed to receive WhatsApp messages</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="cEm" checked><label class="form-check-label" for="cEm">Agreed to receive email</label></div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-teal" id="cSave">Save client</button></div>
+</div></div></div>
+
+<!-- Group modal -->
+<div class="modal fade" id="gModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5" id="gTitle">Create group</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body">
+    <input type="hidden" id="gId">
+    <label class="form-label fw-semibold" for="gName">Group name</label>
+    <input id="gName" class="form-control mb-3" placeholder="e.g. Retail, Export, VIP">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <label class="form-label fw-semibold mb-0">Clients in this group</label>
+      <span class="small"><a href="#" id="gAll" class="text-decoration-none">Select all</a> &middot; <a href="#" id="gNone" class="text-decoration-none">None</a></span>
+    </div>
+    <div id="gMembers" class="list-group"></div>
+    <div class="form-text">A client can be in one group. Picking someone who is already in another group moves them here.</div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-teal" id="gSave">Save group</button></div>
+</div></div></div>
+
+<!-- WhatsApp send queue modal -->
+<div class="modal fade" id="waModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5">Send on WhatsApp</h2></div>
+  <div class="modal-body">
+    <p class="small text-secondary">Click <b>Send</b> next to each client. WhatsApp opens with the message already typed &mdash; press the send button in WhatsApp, then come back here for the next client.</p>
+    <div id="waQueue" class="list-group"></div>
+  </div>
+  <div class="modal-footer justify-content-between"><span class="small text-secondary" id="waProg"></span><button class="btn btn-teal" id="waDone">Finish</button></div>
+</div></div></div>
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3"><div id="toast" class="toast text-bg-dark" role="status"><div class="toast-body" id="toastMsg"></div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ========= 1. FIREBASE (optional) =========
+   Paste your config, add the Firebase SDK scripts, then swap the load/save
+   helpers below for Firestore calls (collections: contacts, campaigns).
+const firebaseConfig = { apiKey:"", authDomain:"", projectId:"" };
+*/
+
+/* ========= 2. SENDING HOOK =========
+   Replace the body with a call to your Cloud Function / backend, which holds
+   the WhatsApp (Cloud API, Gupshup, Interakt, WATI...) and email
+   (Brevo, SendGrid, SES...) keys. Never put API keys in this file.
+   payload = { subject, body, channels:[], recipients:[{name,company,phone,email}], scheduleAt }
+   Return { sent: number } */
+const BACKEND_URL = '';   // e.g. 'https://REGION-PROJECT.cloudfunctions.net/sendCampaign'  (leave empty to use the manual WhatsApp mode)
+
+const waNumber = p => String(p||'').replace(/\D/g,'').replace(/^0+/,'').replace(/^(\d{10})$/,'91$1');
+
+function sendViaWhatsAppWeb(payload){
+  return new Promise(resolve=>{
+    const list = payload.recipients.filter(r=>r.phone);
+    const opened = new Set();
+    const wm = bootstrap.Modal.getOrCreateInstance('#waModal');
+    const upd = ()=>{ $('#waProg').textContent = `${opened.size} of ${list.length} opened`; };
+    $('#waQueue').innerHTML = list.map((r,i)=>`<div class="list-group-item d-flex justify-content-between align-items-center">
+        <div><b>${esc(r.name)}</b><div class="small text-secondary">${esc(r.company)} &middot; +${esc(waNumber(r.phone))}</div></div>
+        <button type="button" class="btn btn-sm btn-success" data-i="${i}"><i class="bi bi-whatsapp"></i> Send</button></div>`).join('');
+    $$('#waQueue button').forEach(btn=>btn.onclick=()=>{
+      const r = list[btn.dataset.i];
+      window.open('https://wa.me/'+waNumber(r.phone)+'?text='+encodeURIComponent(r.message),'_blank','noopener');
+      opened.add(btn.dataset.i);
+      btn.className='btn btn-sm btn-outline-secondary'; btn.innerHTML='<i class="bi bi-check2"></i> Opened';
+      upd();
+    });
+    $('#waDone').onclick = ()=>{ wm.hide(); resolve({sent: opened.size}); };
+    upd(); wm.show();
+  });
+}
+
+async function sendCampaign(payload){
+  if(BACKEND_URL){
+    const r = await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok) throw new Error('Backend error '+r.status);
+    return await r.json();            // must return { sent: number }
+  }
+  // No backend: WhatsApp via wa.me links (manual tap per client). Email needs a backend.
+  if(payload.scheduleAt) throw new Error('Scheduling needs a backend (set BACKEND_URL).');
+  if(!payload.channels.includes('WhatsApp')) throw new Error('Email sending needs a backend (set BACKEND_URL).');
+  return await sendViaWhatsAppWeb(payload);
+}
+
+/* ========= Storage (localStorage demo) ========= */
+const store = {
+  get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)) }catch(e){} }
+};
+const CLOUD = Auth.useFirebase;      // true when Firebase keys are set in auth.js
+const SEED = [
+  {id:1,name:'Rahul Patil',company:'Patil Traders',phone:'919800000001',email:'rahul@example.com',group:'Retail',wa:true,em:true},
+  {id:2,name:'Sneha Kulkarni',company:'Kulkarni Exports',phone:'919800000002',email:'sneha@example.com',group:'Export',wa:true,em:false},
+  {id:3,name:'Amit Shah',company:'Shah Clinics',phone:'',email:'amit@example.com',group:'VIP',wa:false,em:true}
+];
+let contacts = CLOUD ? [] : store.get('bc_contacts', SEED);
+let history = CLOUD ? [] : store.get('bc_history', []);
+let groups = CLOUD ? [] : (store.get('bc_groups', null) || [...new Set(contacts.map(c=>c.group).filter(Boolean))].map((n,i)=>({id:Date.now()+i,name:n})));
+let scheduled = CLOUD ? [] : store.get('bc_scheduled', []);
+let ready = !CLOUD;
+const newId = ()=>Date.now()*1000+Math.floor(Math.random()*1000);
+const $ = s=>document.querySelector(s), $$ = s=>document.querySelectorAll(s);
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const save = ()=>{ if(!CLOUD){ store.set('bc_contacts',contacts); store.set('bc_history',history); store.set('bc_groups',groups); store.set('bc_scheduled',scheduled); } else cloud.queue(); };
+const fmt = d=>new Date(d).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
+const gModal = new bootstrap.Modal('#gModal'); const modal = new bootstrap.Modal('#cModal'); const toast = new bootstrap.Toast('#toast');
+const say = m=>{ $('#toastMsg').textContent=m; toast.show(); };
+
+/* ========= Cloud sync (Firestore) =========
+   Collections: bc_contacts, bc_groups, bc_campaigns (history), bc_scheduled.
+   The arrays above stay the source of truth for the UI. save() sends only what
+   changed (add / edit / delete) and live listeners pull in other people's changes. */
+function renderAll(){ renderContacts(); renderHistory(); renderScheduled(); preview(); }
+let rafId=0; const scheduleRender=()=>{ if(!ready) return; cancelAnimationFrame(rafId); rafId=requestAnimationFrame(renderAll); };
+const cloud = (()=>{
+  const COLS={contacts:'bc_contacts',groups:'bc_groups',history:'bc_campaigns',scheduled:'bc_scheduled'};
+  const get={contacts:()=>contacts,groups:()=>groups,history:()=>history,scheduled:()=>scheduled};
+  const synced={contacts:new Map(),groups:new Map(),history:new Map(),scheduled:new Map()};
+  const canon=o=>JSON.stringify(o,Object.keys(o).sort());
+  let db=null, user=null, timer=0, flushing=false, again=false;
+  const setStatus=(t,bad)=>{ const el=$('#syncState'); if(el) el.innerHTML=`<i class="bi bi-${bad?'exclamation-triangle-fill text-warning':'cloud-check'} me-1"></i>${t}`; };
+
+  function apply(key,snap){
+    const a=get[key](), m=synced[key], rm=new Set(), up=new Map();
+    snap.docChanges().forEach(ch=>{ const d=ch.doc.data(); if(ch.type==='removed') rm.add(d.id); else up.set(d.id,d); });
+    const byId=new Map(a.map(x=>[x.id,x]));
+    up.forEach((d,id)=>{ const cur=byId.get(id);
+      if(cur){ Object.keys(cur).forEach(k=>delete cur[k]); Object.assign(cur,d); } else a.push(d);
+      m.set(id,canon(d)); });
+    if(rm.size){ for(let i=a.length-1;i>=0;i--) if(rm.has(a[i].id)) a.splice(i,1); rm.forEach(id=>m.delete(id)); }
+    if(key==='history') a.sort((x,y)=>String(y.date).localeCompare(String(x.date)));
+    if(key==='groups') a.sort((x,y)=>x.name.localeCompare(y.name,undefined,{sensitivity:'base'}));
+  }
+
+  async function start(){
+    setStatus('Connecting...');
+    try{ user=await Auth.current(); if(!user) return; db=await Auth.db(); }
+    catch(e){ console.error(e); setStatus('Cloud unavailable',true); say('Could not connect to Firebase. Check the config in auth.js.'); ready=true; renderAll(); return; }
+    const q={contacts:db.collection(COLS.contacts),groups:db.collection(COLS.groups),
+      history:db.collection(COLS.history).orderBy('date','desc').limit(300),scheduled:db.collection(COLS.scheduled)};
+    await Promise.all(Object.keys(COLS).map(key=>new Promise(res=>{
+      let first=true;
+      q[key].onSnapshot(snap=>{ apply(key,snap); if(first){ first=false; res(); } else scheduleRender(); },
+        err=>{ console.error(err); setStatus('Cloud error',true);
+          say(err.code==='permission-denied'?'Firestore refused access. Publish the rules from firestore.rules.':'Could not read from the database.');
+          if(first){ first=false; res(); } });
+    })));
+    ready=true; setStatus('Synced'); renderAll(); tick(false); checkLegacy();
+  }
+
+  async function flush(){
+    if(!db||!ready) return;
+    if(flushing){ again=true; return; }
+    flushing=true;
+    try{
+      do{
+        again=false; const ops=[];
+        for(const key of Object.keys(COLS)){
+          const a=get[key](), m=synced[key], seen=new Set();
+          a.forEach(x=>{ const str=canon(x); seen.add(x.id); if(m.get(x.id)!==str) ops.push({t:'set',key,id:x.id,data:JSON.parse(str),str}); });
+          m.forEach((str,id)=>{ if(!seen.has(id)) ops.push({t:'del',key,id}); });
+        }
+        for(let i=0;i<ops.length;i+=400){
+          const chunk=ops.slice(i,i+400), b=db.batch();
+          chunk.forEach(o=>{ const ref=db.collection(COLS[o.key]).doc(String(o.id)); o.t==='set'?b.set(ref,o.data):b.delete(ref); });
+          await b.commit();
+          chunk.forEach(o=>{ o.t==='set'?synced[o.key].set(o.id,o.str):synced[o.key].delete(o.id); });
+        }
+      }while(again);
+      setStatus('Synced');
+    }catch(e){ console.error(e); setStatus('Not saved, retrying',true); say('Could not save to the cloud. Will retry.'); setTimeout(queue,10000); }
+    finally{ flushing=false; }
+  }
+  const queue=()=>{ clearTimeout(timer); timer=setTimeout(flush,250); setStatus('Saving...'); };
+  const flushNow=()=>{ clearTimeout(timer); return Promise.race([flush(),new Promise(r=>setTimeout(r,3000))]); };
+
+  /* Only one open dashboard may mark a scheduled message as due (prevents double sends) */
+  async function claim(j){
+    try{
+      const ref=db.collection(COLS.scheduled).doc(String(j.id));
+      return await db.runTransaction(async t=>{ const sn=await t.get(ref);
+        if(!sn.exists||sn.data().status!=='Pending') return false;
+        t.update(ref,{status:'Due',dueBy:(user&&user.email)||''}); return true; });
+    }catch(e){ return false; }
+  }
+  window.addEventListener('offline',()=>setStatus('Offline: changes sync when you reconnect',true));
+  window.addEventListener('online',()=>{ setStatus('Syncing...'); queue(); });
+  window.addEventListener('pagehide',()=>{ flush(); });
+  return {start,queue,flushNow,claim,setStatus};
+})();
+
+/* One-time upload of data saved in this browser by the older (localStorage) version */
+const legacy = k=>{ try{ const v=JSON.parse(localStorage.getItem(k)); return Array.isArray(v)?v:[]; }catch(e){ return []; } };
+function checkLegacy(){
+  if(!CLOUD || localStorage.getItem('bc_migrated')) return;
+  const c=legacy('bc_contacts'); if(!c.length) return;
+  $('#legacyN').textContent=c.length; $('#legacyBox').classList.remove('d-none');
+}
+$('#legacyNo').onclick = ()=>{ localStorage.setItem('bc_migrated','1'); $('#legacyBox').classList.add('d-none'); };
+$('#legacyUp').onclick = ()=>{
+  const have=new Set(); contacts.forEach(c=>{ if(c.phone) have.add('p'+c.phone); if(c.email) have.add('e'+String(c.email).toLowerCase()); });
+  const base=newId(); let n=0;
+  legacy('bc_contacts').forEach((c,i)=>{
+    const kp=c.phone?'p'+c.phone:null, ke=c.email?'e'+String(c.email).toLowerCase():null;
+    if((kp&&have.has(kp))||(ke&&have.has(ke))) return;
+    contacts.push({...c,id:base+i}); n++; });
+  legacy('bc_groups').forEach((g,i)=>{ if(g&&g.name&&!groups.some(x=>x.name.toLowerCase()===g.name.toLowerCase())) groups.push({id:base+5000+i,name:g.name}); });
+  syncGroups(true);
+  legacy('bc_history').forEach((h,i)=>history.push({...h,id:base+10000+i}));
+  history.sort((x,y)=>String(y.date).localeCompare(String(x.date)));
+  legacy('bc_scheduled').forEach((j,i)=>scheduled.push({...j,id:base+20000+i}));
+  localStorage.setItem('bc_migrated','1'); $('#legacyBox').classList.add('d-none');
+  save(); renderAll(); say(n+' clients uploaded');
+};
+
+/* ========= Navigation ========= */
+$$('.side .nav-link').forEach(a=>{
+  const go=()=>{ $$('.side .nav-link').forEach(x=>x.classList.remove('active')); a.classList.add('active');
+    $$('.view').forEach(v=>v.classList.remove('show')); $('#view-'+a.dataset.view).classList.add('show'); };
+  a.onclick=go; a.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();go();} };
+});
+
+/* ========= Contacts ========= */
+function syncGroups(explicit){
+  if(CLOUD && !explicit) return;     // in the cloud, groups are only auto-created on explicit actions (avoids duplicates)
+  let ch=false;
+  contacts.forEach(c=>{
+    const n=String(c.group||'').trim();
+    if(!n){ c.group=''; return; }
+    const ex=groups.find(g=>g.name.toLowerCase()===n.toLowerCase());
+    if(ex){ if(c.group!==ex.name){ c.group=ex.name; ch=true; } }
+    else { groups.push({id:Date.now()+groups.length,name:n}); c.group=n; ch=true; }
+  });
+  if(ch) save();
+}
+const pg = {contacts:{page:1,size:25},history:{page:1,size:25}};
+function drawPager(sel,st,total,redraw){
+  const el=$(sel), pages=Math.max(1,Math.ceil(total/st.size));
+  if(st.page>pages) st.page=pages; if(st.page<1) st.page=1;
+  el.classList.toggle('d-none',total===0); if(!total){ el.innerHTML=''; return; }
+  const from=(st.page-1)*st.size+1, to=Math.min(total,st.page*st.size), first=st.page===1, last=st.page===pages;
+  el.innerHTML=`<span class="small text-secondary">Showing ${from.toLocaleString('en-IN')}-${to.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')}</span>
+    <div class="d-flex align-items-center gap-2">
+      <select class="form-select form-select-sm w-auto" aria-label="Rows per page">${[25,50,100].map(n=>`<option value="${n}" ${n===st.size?'selected':''}>${n} per page</option>`).join('')}</select>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Pages">
+        <button type="button" class="btn btn-light" data-g="first" ${first?'disabled':''} aria-label="First page"><i class="bi bi-chevron-bar-left"></i></button>
+        <button type="button" class="btn btn-light" data-g="prev" ${first?'disabled':''} aria-label="Previous page"><i class="bi bi-chevron-left"></i></button>
+        <span class="btn btn-light disabled text-nowrap">Page ${st.page} of ${pages.toLocaleString('en-IN')}</span>
+        <button type="button" class="btn btn-light" data-g="next" ${last?'disabled':''} aria-label="Next page"><i class="bi bi-chevron-right"></i></button>
+        <button type="button" class="btn btn-light" data-g="last" ${last?'disabled':''} aria-label="Last page"><i class="bi bi-chevron-bar-right"></i></button>
+      </div></div>`;
+  el.querySelector('select').onchange=e=>{ st.size=+e.target.value; st.page=1; redraw(); };
+  el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ const g=b.dataset.g;
+    st.page = g==='first'?1 : g==='prev'?st.page-1 : g==='next'?st.page+1 : pages; redraw(); });
+}
+function renderClientRows(){
+  const q = $('#search').value.toLowerCase().trim();
+  const list = contacts.filter(c=>!q || [c.name,c.company,c.phone,c.email,c.group].join(' ').toLowerCase().includes(q))
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),undefined,{sensitivity:'base'}));
+  const st=pg.contacts, pages=Math.max(1,Math.ceil(list.length/st.size)); if(st.page>pages) st.page=pages;
+  const view=list.slice((st.page-1)*st.size, st.page*st.size);
+  $('#rows').innerHTML = view.map(c=>`<tr>
+    <td><b>${esc(c.name)}</b><div class="small text-secondary">${esc(c.company)}</div></td>
+    <td>${esc(c.phone)||'-'}</td><td>${esc(c.email)||'-'}</td><td>${esc(c.group)||'-'}</td>
+    <td><span class="tag ${c.wa&&c.phone?'':'off'}">WhatsApp</span> <span class="tag ${c.em&&c.email?'':'off'}">Email</span></td>
+    <td class="text-end text-nowrap">
+      <button class="btn btn-sm btn-light" onclick="editC(${c.id})" aria-label="Edit ${esc(c.name)}"><i class="bi bi-pencil"></i></button>
+      <button class="btn btn-sm btn-light text-danger" onclick="delC(${c.id})" aria-label="Delete ${esc(c.name)}"><i class="bi bi-trash"></i></button>
+    </td></tr>`).join('');
+  $('#empty').classList.toggle('d-none', contacts.length>0);
+  $('#noMatch').classList.toggle('d-none', !(contacts.length>0 && list.length===0));
+  drawPager('#pgContacts',st,list.length,renderClientRows);
+}
+function renderContacts(){
+  syncGroups();
+  renderClientRows();
+  $('#stAll').textContent = contacts.length.toLocaleString('en-IN');
+  $('#stWa').textContent = contacts.filter(c=>c.wa&&c.phone).length.toLocaleString('en-IN');
+  $('#stEm').textContent = contacts.filter(c=>c.em&&c.email).length.toLocaleString('en-IN');
+  const names=groups.map(g=>g.name), cur=$('#audience').value;
+  $('#audience').innerHTML = '<option value="">All clients</option>'+names.map(g=>`<option>${esc(g)}</option>`).join('');
+  $('#audience').value = names.includes(cur)?cur:'';
+  const sel=$('#cGroup'), keep=sel.value;
+  sel.innerHTML = '<option value="">No group</option>'+names.map(g=>`<option>${esc(g)}</option>`).join('')+'<option value="__new">+ New group...</option>';
+  sel.value = keep && [...sel.options].some(o=>o.value===keep) ? keep : '';
+  renderGroups();
+  updateReach();
+}
+let searchT=0;
+$('#search').oninput = ()=>{ clearTimeout(searchT); searchT=setTimeout(()=>{ pg.contacts.page=1; renderClientRows(); },150); };
+const resetGroupNew = ()=>{ $('#cGroupNew').value=''; $('#cGroupNew').classList.add('d-none'); };
+const pickedGroup = ()=>{ const v=$('#cGroup').value; return v==='__new' ? $('#cGroupNew').value.trim() : v; };
+$('#cGroup').onchange = ()=>{ const n=$('#cGroup').value==='__new'; $('#cGroupNew').classList.toggle('d-none',!n); if(n) $('#cGroupNew').focus(); };
+$('#addBtn').onclick = ()=>{ $('#cTitle').textContent='Add client'; $('#cId').value='';
+  ['Name','Company','Phone','Email','Group'].forEach(f=>$('#c'+f).value=''); $('#cWa').checked=$('#cEm').checked=true; resetGroupNew(); modal.show(); };
+window.editC = id=>{ const c=contacts.find(x=>x.id===id); $('#cTitle').textContent='Edit client'; $('#cId').value=id;
+  $('#cName').value=c.name; $('#cCompany').value=c.company; $('#cPhone').value=c.phone; $('#cEmail').value=c.email; $('#cGroup').value=c.group;
+  $('#cWa').checked=c.wa; $('#cEm').checked=c.em; resetGroupNew(); modal.show(); };
+window.delC = id=>{ const c=contacts.find(x=>x.id===id); if(confirm('Delete '+c.name+'?')){ contacts=contacts.filter(x=>x.id!==id); save(); renderContacts(); say('Client deleted'); } };
+$('#cSave').onclick = ()=>{
+  const name=$('#cName').value.trim(); if(!name){ say('Enter the client name'); return; }
+  const phone=$('#cPhone').value.replace(/\D/g,''), email=$('#cEmail').value.trim();
+  if(!phone && !email){ say('Add a phone number or an email'); return; }
+  const data={name,company:$('#cCompany').value.trim(),phone,email,group:pickedGroup(),wa:$('#cWa').checked,em:$('#cEm').checked};
+  const id=+$('#cId').value;
+  if(id) Object.assign(contacts.find(x=>x.id===id),data); else contacts.push({id:Date.now(),...data});
+  syncGroups(true); save(); renderContacts(); modal.hide(); say('Client saved');
+};
+$('#csv').onchange = e=>{
+  const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{
+    const lines=r.result.split(/\r?\n/).filter(Boolean); const head=lines.shift().split(',').map(h=>h.trim().toLowerCase()); let n=0;
+    lines.forEach((l,i)=>{ const v=l.split(',').map(x=>x.trim()), o={}; head.forEach((h,j)=>o[h]=v[j]||'');
+      if(!o.name||(!o.phone&&!o.email)) return;
+      contacts.push({id:Date.now()+i,name:o.name,company:o.company,phone:(o.phone||'').replace(/\D/g,''),email:o.email,group:o.group,wa:true,em:true}); n++; });
+    syncGroups(true); save(); renderContacts(); say(n+' clients imported'); e.target.value='';
+  }; r.readAsText(f);
+};
+$('#exportBtn').onclick = ()=>{
+  const csv=['name,company,phone,email,group'].concat(contacts.map(c=>[c.name,c.company,c.phone,c.email,c.group].join(','))).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='clients.csv'; a.click();
+};
+
+/* ========= Compose ========= */
+const TPL = {
+  'Diwali':['Diwali greetings','Dear {name},\n\nWishing you and everyone at {company} a bright and prosperous Diwali. Thank you for being with us this year.\n\nWarm regards,\nTeam'],
+  'Holi':['Holi greetings','Dear {name},\n\nMay the colours of Holi bring joy and success to you and {company}. Happy Holi!\n\nWarm regards,\nTeam'],
+  'Eid':['Eid Mubarak','Dear {name},\n\nEid Mubarak to you and your family. Wishing {company} peace and happiness.\n\nWarm regards,\nTeam'],
+  'Holiday notice':['Office closed notice','Dear {name},\n\nOur office will be closed on [date] for [occasion]. We will be back on [date]. For urgent matters please call [number].\n\nThank you,\nTeam'],
+  'Announcement':['Monthly update','Dear {name},\n\nHere is this month\'s update from us:\n\n[your announcement]\n\nThank you,\nTeam']
+};
+$('#templates').innerHTML = Object.keys(TPL).map(k=>`<button type="button" class="chip" data-t="${k}">${k}</button>`).join('');
+$$('#templates .chip').forEach(b=>b.onclick=()=>{ const t=TPL[b.dataset.t]; $('#subject').value=t[0]; $('#body').value=t[1]; preview(); });
+
+const fill=(t,c)=>t.replace(/\{name\}/g,c?c.name:'Rahul').replace(/\{company\}/g,c?c.company:'your company');
+function preview(){
+  const body=$('#body').value||'Your message will appear here.', c=contacts[0];
+  $('#pvWaText').textContent = fill(body,c);
+  $('#pvEmSub').textContent = $('#subject').value||'(No subject)';
+  $('#pvEmText').textContent = fill(body,c);
+  $('#count').textContent = $('#body').value.length;
+}
+function recipientsFor(g,wa,em){
+  return contacts.filter(c=>(!g||c.group===g) && ((wa&&c.wa&&c.phone)||(em&&c.em&&c.email)));
+}
+function recipients(){ return recipientsFor($('#audience').value,$('#chWa').checked,$('#chEm').checked); }
+const buildPayload = (m,r)=>({subject:m.subject,body:m.body,channels:m.channels,scheduleAt:m.scheduleAt||null,
+  recipients:r.map(c=>({name:c.name,company:c.company,phone:c.wa?c.phone:'',email:c.em?c.email:'',message:fill(m.body,c)}))});
+function setMin(){ const d=new Date(Date.now()-new Date().getTimezoneOffset()*60000); $('#when').min=d.toISOString().slice(0,16); }
+$('#when').addEventListener('focus',setMin);
+function updateReach(){
+  const r=recipients(), g=$('#audience').value, wa=$('#chWa').checked, em=$('#chEm').checked;
+  const nWa=wa?r.filter(c=>c.wa&&c.phone).length:0, nEm=em?r.filter(c=>c.em&&c.email).length:0;
+  $('#reach').textContent = `Reaches ${r.length} client${r.length===1?'':'s'} (${nWa} WhatsApp, ${nEm} email)`;
+  $('#sendLabel').textContent = $('#when').value ? 'Schedule message' : 'Send now';
+}
+['subject','body'].forEach(i=>$('#'+i).oninput=preview);
+['audience','when','chWa','chEm'].forEach(i=>$('#'+i).onchange=updateReach);
+$$('#prevTabs button').forEach(b=>b.onclick=()=>{ $$('#prevTabs button').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  $('#pvWa').classList.toggle('d-none',b.dataset.p!=='wa'); $('#pvEm').classList.toggle('d-none',b.dataset.p!=='em'); });
+
+$('#sendBtn').onclick = async ()=>{
+  const subject=$('#subject').value.trim(), body=$('#body').value.trim(), channels=[];
+  if($('#chWa').checked) channels.push('WhatsApp'); if($('#chEm').checked) channels.push('Email');
+  const audience=$('#audience').value, r=recipients(), when=$('#when').value;
+  if(!subject||!body){ say('Add a subject and a message'); return; }
+  if(!channels.length){ say('Choose WhatsApp, email or both'); return; }
+  if(!r.length){ say('No clients match this audience and channel'); return; }
+  if(when && new Date(when)<=new Date()){ say('Pick a time in the future, or clear the schedule to send now'); return; }
+  if(!BACKEND_URL && !channels.includes('WhatsApp')){ say('Email sending needs a backend (set BACKEND_URL).'); return; }
+  const note = (!BACKEND_URL && channels.includes('Email')) ? '\n\nNote: email is not sent without a backend. Only WhatsApp will be prepared.' : '';
+  if(!confirm(`${when?'Schedule':'Send'} "${subject}" to ${r.length} client(s) via ${channels.join(' + ')}?${when?'\nWhen: '+fmt(when):''}${note}`)) return;
+  const clearForm=()=>{ $('#subject').value=$('#body').value=$('#when').value=''; preview(); updateReach(); };
+
+  // Local schedule (no backend): keep it in the Scheduled list until it is due
+  if(when && !BACKEND_URL){
+    scheduled.push({id:Date.now(),subject,body,channels,audience,scheduleAt:new Date(when).toISOString(),status:'Pending'});
+    save(); renderScheduled(); clearForm(); say('Message scheduled for '+fmt(when)); return;
+  }
+
+  const btn=$('#sendBtn'); btn.disabled=true;
+  try{
+    const res=await sendCampaign(buildPayload({subject,body,channels,scheduleAt:when||null},r));
+    if(!res.sent){ say('No message was sent'); btn.disabled=false; return; }
+    history.unshift({id:newId(),date:new Date().toISOString(),subject,audience:audience||'All clients',channels,count:res.sent,status:when?'Scheduled for '+new Date(when).toLocaleString('en-IN'):'Sent'});
+    save(); renderHistory(); clearForm(); say(when?'Message scheduled':'Message sent');
+  }catch(e){ say(e.message && /needs a backend/.test(e.message) ? e.message : 'Sending failed. Check your connection and try again.'); }
+  btn.disabled=false;
+};
+
+/* ========= Groups ========= */
+const show = v=>$('.side .nav-link[data-view="'+v+'"]').click();
+function renderGroups(){
+  $('#grpRows').innerHTML = groups.map(g=>{
+    const m=contacts.filter(c=>c.group===g.name);
+    return `<tr><td><b>${esc(g.name)}</b></td><td>${m.length}</td>
+      <td>${m.filter(c=>c.wa&&c.phone).length}</td><td>${m.filter(c=>c.em&&c.email).length}</td>
+      <td class="text-end text-nowrap">
+        <button class="btn btn-sm btn-teal" onclick="msgG(${g.id})"><i class="bi bi-send me-1"></i>Message</button>
+        <button class="btn btn-sm btn-light" onclick="openG(${g.id})" aria-label="Edit ${esc(g.name)}"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-light text-danger" onclick="delG(${g.id})" aria-label="Delete ${esc(g.name)}"><i class="bi bi-trash"></i></button>
+      </td></tr>`; }).join('');
+  $('#grpEmpty').classList.toggle('d-none', groups.length>0);
+}
+window.openG = id=>{
+  const g=id?groups.find(x=>x.id===id):null;
+  $('#gTitle').textContent = g?'Edit group':'Create group'; $('#gId').value=g?g.id:''; $('#gName').value=g?g.name:'';
+  $('#gMembers').innerHTML = contacts.map(c=>`<label class="list-group-item d-flex align-items-center gap-2">
+      <input class="form-check-input mt-0" type="checkbox" value="${c.id}" ${g&&c.group===g.name?'checked':''}>
+      <span><b>${esc(c.name)}</b> <span class="small text-secondary">${esc(c.company)}</span></span>
+      ${c.group&&(!g||c.group!==g.name)?`<span class="tag ms-auto">now in ${esc(c.group)}</span>`:''}</label>`).join('')
+    || '<div class="list-group-item text-secondary">Add clients first, then group them.</div>';
+  gModal.show();
+};
+$('#addGroupBtn').onclick = ()=>openG(0);
+$('#gAll').onclick = e=>{ e.preventDefault(); $$('#gMembers input').forEach(i=>i.checked=true); };
+$('#gNone').onclick = e=>{ e.preventDefault(); $$('#gMembers input').forEach(i=>i.checked=false); };
+$('#gSave').onclick = ()=>{
+  const name=$('#gName').value.trim(); if(!name){ say('Enter a group name'); return; }
+  const id=+$('#gId').value;
+  if(groups.some(x=>x.id!==id && x.name.toLowerCase()===name.toLowerCase())){ say('A group with this name already exists'); return; }
+  const ids=[...$$('#gMembers input:checked')].map(i=>+i.value);
+  if(id){
+    const g=groups.find(x=>x.id===id), old=g.name; g.name=name;
+    contacts.forEach(c=>{ if(ids.includes(c.id)) c.group=name; else if(c.group===old) c.group=''; });
+    scheduled.forEach(j=>{ if(j.audience===old) j.audience=name; });
+  }else{
+    groups.push({id:Date.now(),name}); contacts.forEach(c=>{ if(ids.includes(c.id)) c.group=name; });
+  }
+  save(); renderContacts(); renderScheduled(); gModal.hide(); say(id?'Group updated':'Group created');
+};
+window.delG = id=>{
+  const g=groups.find(x=>x.id===id), jobs=scheduled.filter(j=>j.audience===g.name);
+  if(!confirm(`Delete group "${g.name}"? Its clients stay in your list but lose this group.`+(jobs.length?`\n${jobs.length} scheduled message(s) for this group will be cancelled.`:''))) return;
+  contacts.forEach(c=>{ if(c.group===g.name) c.group=''; });
+  scheduled=scheduled.filter(j=>j.audience!==g.name); groups=groups.filter(x=>x.id!==id);
+  save(); renderContacts(); renderScheduled(); say('Group deleted');
+};
+window.msgG = id=>{ const g=groups.find(x=>x.id===id); $('#audience').value=g.name; updateReach(); show('compose'); $('#subject').focus(); };
+
+/* ========= Scheduled ========= */
+const rel = ms=>{ if(ms<60000) return 'in under a minute'; const m=Math.round(ms/60000);
+  if(m<60) return 'in '+m+' min'; const h=Math.floor(m/60); if(h<24) return 'in '+h+' h '+(m%60)+' min'; const d=Math.floor(h/24); return 'in '+d+' day'+(d>1?'s':'')+' '+(h%24)+' h'; };
+function renderScheduled(){
+  scheduled.sort((a,b)=>new Date(a.scheduleAt)-new Date(b.scheduleAt));
+  $('#schedRows').innerHTML = scheduled.map(j=>{
+    const r=recipientsFor(j.audience,j.channels.includes('WhatsApp'),j.channels.includes('Email')), due=j.status==='Due';
+    return `<tr><td>${fmt(j.scheduleAt)}<div class="small text-secondary">${due?'Time has passed':rel(new Date(j.scheduleAt)-Date.now())}</div></td>
+      <td><b>${esc(j.subject)}</b></td><td>${esc(j.audience||'All clients')}</td><td>${j.channels.join(', ')}</td><td>${r.length}</td>
+      <td><span class="tag" ${due?'style="background:#fff1d6;color:#8a5a00"':''}>${due?'Due: ready to send':'Scheduled'}</span></td>
+      <td class="text-end text-nowrap">
+        <button class="btn btn-sm btn-teal" onclick="sendNow(${j.id})">Send now</button>
+        <button class="btn btn-sm btn-light" onclick="editJ(${j.id})" aria-label="Edit ${esc(j.subject)}"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-light text-danger" onclick="cancelJ(${j.id})" aria-label="Cancel ${esc(j.subject)}"><i class="bi bi-x-lg"></i></button>
+      </td></tr>`; }).join('');
+  $('#schedEmpty').classList.toggle('d-none', scheduled.length>0);
+  const n=scheduled.filter(j=>j.status==='Due').length;
+  $('#dueBadge').textContent=n; $('#dueBadge').classList.toggle('d-none',!n);
+}
+let running=false;
+async function runJob(j){
+  if(running) return; running=true;
+  try{
+    const wa=j.channels.includes('WhatsApp'), em=j.channels.includes('Email'), r=recipientsFor(j.audience,wa,em);
+    if(!r.length){ j.status='Due'; save(); renderScheduled(); say('No clients match this scheduled message any more'); return; }
+    const res=await sendCampaign(buildPayload({...j,scheduleAt:null},r));
+    if(res.sent){
+      history.unshift({id:newId(),date:new Date().toISOString(),subject:j.subject,audience:j.audience||'All clients',channels:j.channels,count:res.sent,status:'Sent (scheduled)'});
+      scheduled=scheduled.filter(x=>x.id!==j.id); say('Scheduled message sent');
+    }else{ j.status='Due'; say('Nothing was sent. It stays in Scheduled.'); }
+    save(); renderHistory(); renderScheduled();
+  }catch(e){ j.status='Due'; save(); renderScheduled(); say(e.message||'Sending failed'); }
+  finally{ running=false; }
+}
+window.sendNow = id=>runJob(scheduled.find(x=>x.id===id));
+window.cancelJ = id=>{ const j=scheduled.find(x=>x.id===id); if(confirm('Cancel scheduled message "'+j.subject+'"?')){ scheduled=scheduled.filter(x=>x.id!==id); save(); renderScheduled(); say('Schedule cancelled'); } };
+window.editJ = id=>{
+  const j=scheduled.find(x=>x.id===id); const d=new Date(new Date(j.scheduleAt)-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  $('#subject').value=j.subject; $('#body').value=j.body; $('#audience').value=j.audience;
+  $('#chWa').checked=j.channels.includes('WhatsApp'); $('#chEm').checked=j.channels.includes('Email'); $('#when').value=d;
+  scheduled=scheduled.filter(x=>x.id!==id); save(); renderScheduled(); preview(); updateReach(); show('compose'); say('Edit it and press Schedule message again');
+};
+let ticking=false;
+async function tick(auto){
+  if(!ready||ticking) return; ticking=true;
+  try{
+    const now=Date.now(), cand=scheduled.filter(j=>j.status==='Pending' && new Date(j.scheduleAt)<=now), fresh=[];
+    for(const j of cand){ if(await (CLOUD?cloud.claim(j):true)){ j.status='Due'; fresh.push(j); } }
+    if(!fresh.length){ renderScheduled(); return; }
+    save(); renderScheduled();
+    say(fresh.length===1?'Scheduled message "'+fresh[0].subject+'" is due':fresh.length+' scheduled messages are due');
+    if(auto && !running && !document.querySelector('.modal.show')) runJob(fresh[0]);
+  }finally{ ticking=false; }
+}
+$('#newSchedBtn').onclick = ()=>{ show('compose'); setMin(); $('#when').focus(); };
+
+/* ========= History ========= */
+function renderHistory(){
+  const st=pg.history, pages=Math.max(1,Math.ceil(history.length/st.size)); if(st.page>pages) st.page=pages;
+  $('#hist').innerHTML = history.slice((st.page-1)*st.size, st.page*st.size).map(h=>`<tr><td>${new Date(h.date).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</td>
+    <td><b>${esc(h.subject)}</b></td><td>${esc(h.audience)}</td><td>${h.channels.join(', ')}</td><td>${h.count}</td>
+    <td><span class="tag">${esc(h.status)}</span></td></tr>`).join('');
+  $('#histEmpty').classList.toggle('d-none', history.length>0);
+  drawPager('#pgHistory',st,history.length,renderHistory);
+}
+
+setMin(); setInterval(()=>tick(true),15000);
+if(CLOUD){
+  $('#rows').innerHTML='<tr><td colspan="6" class="text-center text-secondary py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading clients...</td></tr>';
+  cloud.start();
+}else{
+  $('#syncState').innerHTML='<i class="bi bi-hdd me-1"></i>Saved in this browser only';
+  renderAll(); tick(false);
+}
+$('#logoutBtn').onclick = async ()=>{ if(CLOUD) await cloud.flushNow(); Auth.signOut(); };
+</script>
+</body>
+</html>
